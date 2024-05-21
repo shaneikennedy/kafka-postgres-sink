@@ -1,0 +1,41 @@
+plugins {
+    id 'groovy'
+}
+
+group = 'org.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.apache.groovy:groovy:4.0.14'
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients
+    implementation 'org.apache.kafka:kafka-clients:3.0.0'
+
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+
+    // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
+    implementation 'org.slf4j:slf4j-simple:1.7.32'
+
+    implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.17.1'
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.17.1'
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.register('run', JavaExec) {
+    main = 'org.example.Main'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
+run.dependsOn('compileJava')
