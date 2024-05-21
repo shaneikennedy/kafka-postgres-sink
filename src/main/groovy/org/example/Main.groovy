@@ -6,8 +6,6 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Timestamp
 import java.time.Duration
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -16,14 +14,9 @@ import org.slf4j.LoggerFactory
 
 
 static void main(String[] args) {
-	def log = LoggerFactory.getLogger(Main.class)
-	log.info("hello world")
 	def pg = new PostgresClient()
-	def job = Executors.newScheduledThreadPool(1)
-	job.scheduleAtFixedRate({ -> log.info("total: $pg.sum") }, 100, 1000, TimeUnit.MILLISECONDS)
-
 	def consumer = new Consumer()
-	consumer.start("demo_java", { ConsumerRecord record -> pg.insertPayment(record.value)})
+	consumer.start("demo_java", { ConsumerRecord record -> pg.insertPayment(record.value() as String)})
 }
 
 class Consumer {
@@ -45,19 +38,11 @@ class Consumer {
 	void start(String topic, Closure callback) {
 		consumer.subscribe(List.of(topic))
 
-		def shouldStop = false
+		//noinspection GroovyInfiniteLoopStatement
 		while (true) {
 			def records = consumer.poll(Duration.ofMillis(1000))
-
 			records.each {
-				if ("stop" == it.value()) {
-					shouldStop = true
-				}
 				callback(it)
-			}
-			if (shouldStop) {
-				consumer.commitSync()
-				break
 			}
 		}
 	}
@@ -81,14 +66,6 @@ class PostgresClient {
 		props.setProperty("user", "postgres")
 		props.setProperty("password", "mysecretpassword")
 		connection = DriverManager.getConnection(url, props)
-	}
-
-	float getSum() {
-		def result =  connection.createStatement().executeQuery("select sum(amount) as s from main_payment")
-		while (result.next()) {
-			return result.getFloat("s")
-		}
-		return 200
 	}
 
 	void insertPayment(String data) {
