@@ -1,0 +1,12 @@
+# Main topic to sink to pg
+topic:
+  name: demo_java
+
+# Quarantine strategy
+quarantine:
+  topicName: demo_java_quarantine
+  maxRetries: 3
+
+# Dead letter queuing
+deadletter:
+  topicName: demo_java_dlq
