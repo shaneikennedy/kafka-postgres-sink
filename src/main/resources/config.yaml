@@ -1,6 +1,13 @@
 # Main topic to sink to pg
 topic:
   name: demo_java
+  schema:
+    - name: id
+      type: string    -
+    - name: timestamp
+      type: string
+    - name: amount
+      type: float
 
 # Quarantine strategy
 quarantine:
@@ -10,3 +17,10 @@ quarantine:
 # Dead letter queuing
 deadletter:
   topicName: demo_java_dlq
+
+
+postgres:
+  host: localhost
+  dbName: djangopg
+  user: postgres
+  password: mysecretpassword
