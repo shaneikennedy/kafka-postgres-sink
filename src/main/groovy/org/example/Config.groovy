@@ -8,7 +8,6 @@ class Config {
 
 	class Topic {
 		String name
-		List<Field> schema
 	}
 
 
@@ -26,6 +25,8 @@ class Config {
 		String dbName
 		String user
 		String password
+		String table
+		List<Field> schema
 	}
 }
 

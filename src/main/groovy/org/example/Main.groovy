@@ -1,11 +1,9 @@
 package org.example
 
-import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import java.sql.Connection
 import java.sql.DriverManager
-import java.sql.Timestamp
 import java.time.Duration
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -32,7 +30,7 @@ static void main(String[] args) {
 	}
 
 	log.info("max retries configured to $config.quarantine.maxRetries")
-	def pg = new PostgresClient(config.postgres.host, config.postgres.dbName, config.postgres.user, config.postgres.password)
+	def pg = new PostgresClient(config.postgres)
 
 	def handler = new KafkaHandler(
 			new Consumer(),
@@ -40,7 +38,7 @@ static void main(String[] args) {
 			new DeadLetterProducer(config.deadletter.topicName))
 	handler.start(
 			List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record ->
-				pg.insertPayment(record.value() as String)
+				pg.insertRecord(record.value() as String)
 			})
 }
 
@@ -143,12 +141,14 @@ class KafkaHandler {
 				try {
 					callback(it)
 				} catch (Exception e) {
+					logger.error("Exception: {}", e.toString())
 					def retryCount = it.headers().count {it.key().equals("retry-attempt")}
 					logger.info("RETRY COUNT: $retryCount")
 					if (retryCount > 3) {
 						logger.error("Dropping message after 3 retries")
 						dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
 					} else {
+						logger.info("Sending to quarantine")
 						quarantineProducer.sendSynchronously(it.key(), it.value(), it.headers())
 					}
 				}
@@ -157,43 +157,75 @@ class KafkaHandler {
 	}
 }
 
-class Payment {
-	String id
-	@JsonFormat (pattern = "yy-mm-dd HH:mm:ss")
-	Timestamp time
-	float amount
-}
-
 class PostgresClient {
 	Connection connection
+	String dbName
+	List<Field> schema
+	String table
 	def objectMapper = new ObjectMapper()
 	def logger = LoggerFactory.getLogger(PostgresClient)
 
 
-	PostgresClient(String host, String dbName, String user, String password) {
+	PostgresClient(Config.Postgres config) {
 		Properties props = new Properties()
-		props.setProperty("user", user)
-		props.setProperty("password", password)
-		connection = DriverManager.getConnection(constructURL(host, dbName), props)
+		props.setProperty("user", config.user)
+		props.setProperty("password", config.password)
+		this.dbName = config.dbName
+		this.schema = config.schema
+		this.table = config.table
+		connection = DriverManager.getConnection(constructURL(config.host, config.dbName), props)
 	}
 
-	String constructURL(String host, String dbName) {
+    static String constructURL(String host, String dbName) {
 		return "jdbc:postgresql://$host/$dbName"
 	}
 
-	void insertPayment(String data) {
-		def row
+	String constructSQLInsert(String data) {
+		// Setup the insert statement: insert into <tableName> (field1, field2, field3...
+		def fieldName = schema.collect {it.name}
+		def insertStatement = "insert into $table ("
+		fieldName.each {
+			insertStatement += "$it, "
+		}
+
+		// Replace the last two characters, a comma and a space, with a close-parens
+		insertStatement = insertStatement.substring(0, insertStatement.length() - 2)
+
+		// Insert the values
+		insertStatement += ") values ("
+
+		// Deserialize the data to a map that we can lookup values for based on schema
+		Map row
 		try {
-			row = objectMapper.readValue(data, Payment)
+			row = objectMapper.readValue(data, Map)
 		} catch (Exception e) {
 			logger.debug("could not deserialize data", e)
 		}
 
-		logger.debug("$row.amount, $row.time, $row.id")
-		try {
-			connection.createStatement().execute("insert into main_payment(id, amount, time) values ('$row.id', $row.amount, timestamp '$row.time')")
-		} catch (Exception e) {
-			logger.debug("couldn't insert row", e)
+		// Insert each value from schema
+		schema.each {
+			def value = row.get(it.name)
+			if (it.type.equals("string")) {
+				insertStatement += "'$value', "
+			} else if (it.type.equals("timestamp")) {
+				insertStatement += "timestamp '$value', "
+			} else {
+				insertStatement += "$value, "
+			}
 		}
+
+		// Replace the last two characters, a comma and a space, with a close-parens
+		insertStatement = insertStatement.substring(0, insertStatement.length() - 2)
+
+		// Close the statement
+		insertStatement += ")"
+
+		logger.debug("Generated insert statement: $insertStatement")
+
+		return insertStatement
+	}
+
+	void insertRecord(String data) throws Exception {
+		connection.createStatement().execute(constructSQLInsert(data))
 	}
 }

@@ -1,13 +1,6 @@
 # Main topic to sink to pg
 topic:
   name: demo_java
-  schema:
-    - name: id
-      type: string    -
-    - name: timestamp
-      type: string
-    - name: amount
-      type: float
 
 # Quarantine strategy
 quarantine:
@@ -24,3 +17,11 @@ postgres:
   dbName: djangopg
   user: postgres
   password: mysecretpassword
+  table: main_payment
+  schema:
+    - name: id
+      type: string
+    - name: time
+      type: timestamp
+    - name: amount
+      type: number
