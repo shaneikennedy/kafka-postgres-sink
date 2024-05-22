@@ -78,8 +78,8 @@ class DeadLetterProducer {
 	}
 
 	void sendSynchronously(String key, String value, Headers headers) {
-		// TODO do better with the partition number, the constructor here is annoying
-		ProducerRecord quarantineRecord = new ProducerRecord(topic, 0, key, value, headers)
+		// partition set to null because the kafka client handles it during producer.send()
+		ProducerRecord quarantineRecord = new ProducerRecord(topic, null, key, value, headers)
 		producer.send(quarantineRecord)
 		producer.flush()
 	}
@@ -102,8 +102,8 @@ class QuarantineProducer {
 		// "increment" the retry count
 		headers.add("retry-attempt", 0.byteValue())
 
-		// TODO do better with the partition number, the constructor here is annoying
-		ProducerRecord quarantineRecord = new ProducerRecord(topic, 0, key, value, headers)
+		// partition set to null because the kafka client handles it during producer.send()
+		ProducerRecord quarantineRecord = new ProducerRecord(topic, null, key, value, headers)
 		producer.send(quarantineRecord)
 		producer.flush()
 	}
