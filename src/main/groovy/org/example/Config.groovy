@@ -1,6 +1,7 @@
 package org.example
 
 class Config {
+	Kafka kafka
 	Topic topic
 	Quarantine quarantine
 	DeadLetter deadletter
@@ -27,6 +28,12 @@ class Config {
 		String password
 		String table
 		List<Field> schema
+	}
+
+	class Kafka {
+		List<String> bootstrapServers
+		String consumerGroupId
+		String autoOffsetReset
 	}
 }
 
