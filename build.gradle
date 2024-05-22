@@ -5,7 +5,7 @@ plugins {
 	id "com.diffplug.spotless" version "6.25.0"
 }
 
-group = 'org.example'
+group = 'org.kafkapgsink'
 version = '1.0-SNAPSHOT'
 
 repositories {
@@ -37,7 +37,7 @@ test {
 }
 
 tasks.register('run', JavaExec) {
-	main = 'org.example.Main'
+	main = 'org.kafkapgsink.Main'
 	classpath = sourceSets.main.runtimeClasspath
 }
 
