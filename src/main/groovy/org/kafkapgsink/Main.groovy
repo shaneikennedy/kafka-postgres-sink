@@ -152,7 +152,6 @@ class KafkaHandler {
 						if (quarantineProducer == null) {
 							logger.error("Sending to dead letter after 0 retries")
 							dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
-
 						} else if (retryCount > 3) {
 							logger.error("Sending to dead letter after 3 retries")
 							dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
@@ -162,7 +161,6 @@ class KafkaHandler {
 					// if dlq is null and we're over 3 retries, log error message about dropping
 					if (dlqProducer == null && retryCount > 3) {
 						logger.error("Dropping message for key: $it.key after 3 retries")
-
 					}
 
 					if (dlqProducer == null  && quarantineProducer == null) {
