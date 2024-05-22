@@ -3,7 +3,6 @@ package org.example
 import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Timestamp
@@ -26,16 +25,23 @@ static void main(String[] args) {
 	try {
 		ObjectMapper mapper = new ObjectMapper(new YAMLFactory())
 		def configFile = this.getClass().getClassLoader()
-				.getResourceAsStream("config.yaml");
+				.getResourceAsStream("config.yaml")
 		config = mapper.readValue(configFile, Config)
 	} catch (IOException e) {
 		log.error("Could not load config.yaml", e)
 	}
 
 	log.info("max retries configured to $config.quarantine.maxRetries")
-	def pg = new PostgresClient()
-	def handler = new KafkaHandler(new Consumer(), new QuarantineProducer(config.quarantine.topicName), new DeadLetterProducer(config.deadletter.topicName))
-	handler.start(List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record -> pg.insertPayment(record.value() as String) })
+	def pg = new PostgresClient(config.postgres.host, config.postgres.dbName, config.postgres.user, config.postgres.password)
+
+	def handler = new KafkaHandler(
+			new Consumer(),
+			new QuarantineProducer(config.quarantine.topicName),
+			new DeadLetterProducer(config.deadletter.topicName))
+	handler.start(
+			List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record ->
+				pg.insertPayment(record.value() as String)
+			})
 }
 
 class Consumer {
@@ -160,15 +166,19 @@ class Payment {
 
 class PostgresClient {
 	Connection connection
-	def url = "jdbc:postgresql://localhost/djangopg"
 	def objectMapper = new ObjectMapper()
 	def logger = LoggerFactory.getLogger(PostgresClient)
 
-	PostgresClient() {
+
+	PostgresClient(String host, String dbName, String user, String password) {
 		Properties props = new Properties()
-		props.setProperty("user", "postgres")
-		props.setProperty("password", "mysecretpassword")
-		connection = DriverManager.getConnection(url, props)
+		props.setProperty("user", user)
+		props.setProperty("password", password)
+		connection = DriverManager.getConnection(constructURL(host, dbName), props)
+	}
+
+	String constructURL(String host, String dbName) {
+		return "jdbc:postgresql://$host/$dbName"
 	}
 
 	void insertPayment(String data) {
