@@ -26,7 +26,7 @@ dependencies {
 	// https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
 	implementation 'org.slf4j:slf4j-simple:1.7.32'
 
-	implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
+	implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.1'
 	implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.17.1'
 	implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.17.1'
 	implementation group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: '2.17.1'
