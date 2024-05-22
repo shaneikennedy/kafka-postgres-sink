@@ -1,3 +1,9 @@
+kafka:
+  bootstrapServers:
+    - 127.0.0.1:9092
+  consumerGroupId: "why-groovy"
+  autoOffsetReset: "latest"
+
 # Main topic to sink to pg
 topic:
   name: demo_java

@@ -33,9 +33,9 @@ static void main(String[] args) {
 	def pg = new PostgresClient(config.postgres)
 
 	def handler = new KafkaHandler(
-			new Consumer(),
-			new QuarantineProducer(config.quarantine.topicName),
-			new DeadLetterProducer(config.deadletter.topicName))
+			new Consumer(config.kafka),
+			new QuarantineProducer(config.kafka, config.quarantine),
+			new DeadLetterProducer(config.kafka, config.deadletter))
 	handler.start(
 			List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record ->
 				pg.insertRecord(record.value() as String)
@@ -44,16 +44,14 @@ static void main(String[] args) {
 
 class Consumer {
 	KafkaConsumer consumer
-	def bootstrapServers = "127.0.0.1:9092"
-	def groupId = "my-fourth-application"
 
-	Consumer() {
+	Consumer(Config.Kafka kafka) {
 		def props = new Properties()
-		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.bootstrapServers.join(","))
 		props.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.getName())
 		props.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.getName())
-		props.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId)
-		props.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest")
+		props.setProperty(ConsumerConfig.GROUP_ID_CONFIG, kafka.consumerGroupId)
+		props.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafka.autoOffsetReset)
 		consumer = new KafkaConsumer<>(props)
 	}
 
@@ -69,17 +67,13 @@ class Consumer {
 class DeadLetterProducer {
 	KafkaProducer producer
 	String topic
-	def bootstrapServers = "127.0.0.1:9092"
-	def groupId = "my-fourth-application"
 
-	DeadLetterProducer(String topicName) {
-		this.topic = topicName
+	DeadLetterProducer(Config.Kafka kafka, Config.DeadLetter config) {
+		this.topic = config.topicName
 		def props = new Properties()
-		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+		props.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.bootstrapServers.join(","))
 		props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
 		props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
-		props.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId)
-		props.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest")
 		producer = new KafkaProducer<>(props)
 	}
 
@@ -94,17 +88,13 @@ class DeadLetterProducer {
 class QuarantineProducer {
 	KafkaProducer producer
 	String topic
-	def bootstrapServers = "127.0.0.1:9092"
-	def groupId = "my-fourth-application"
 
-	QuarantineProducer(String topicName) {
-		this.topic = topicName
+	QuarantineProducer(Config.Kafka kafka, Config.Quarantine config) {
+		this.topic = config.topicName
 		def props = new Properties()
-		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+		props.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.bootstrapServers.join(","))
 		props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
 		props.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
-		props.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId)
-		props.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest")
 		producer = new KafkaProducer<>(props)
 	}
 
@@ -176,7 +166,7 @@ class PostgresClient {
 		connection = DriverManager.getConnection(constructURL(config.host, config.dbName), props)
 	}
 
-    static String constructURL(String host, String dbName) {
+	static String constructURL(String host, String dbName) {
 		return "jdbc:postgresql://$host/$dbName"
 	}
 
