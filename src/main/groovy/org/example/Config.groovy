@@ -3,24 +3,18 @@ package org.example
 class Config {
 	Topic topic
 	Quarantine quarantine
-	DeadLetter dlq
-
-	Config() throws IOException {
-		def props = new Properties()
-		props.load(Main.getClassLoader().getResourceAsStream("config.properties"))
-		topic = new Topic(name: props.getProperty("topicName"))
-		quarantine = new Quarantine(name: props.getProperty("quarantineTopicName"))
-	}
+	DeadLetter deadletter
 
 	class Topic {
 		String name
 	}
 
 	class Quarantine {
-		String name
+		String topicName
+		int maxRetries = 3
 	}
 
 	class DeadLetter {
-		String name
+		String topicName
 	}
 }

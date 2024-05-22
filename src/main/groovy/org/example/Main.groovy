@@ -1,6 +1,9 @@
 package org.example
 
+import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.Timestamp
@@ -21,14 +24,18 @@ static void main(String[] args) {
 	def log = LoggerFactory.getLogger(Main)
 	def config
 	try {
-		config = new Config()
+		ObjectMapper mapper = new ObjectMapper(new YAMLFactory())
+		def configFile = this.getClass().getClassLoader()
+				.getResourceAsStream("config.yaml");
+		config = mapper.readValue(configFile, Config)
 	} catch (IOException e) {
-		log.error("Could not load config.properties", e)
+		log.error("Could not load config.yaml", e)
 	}
 
+	log.info("max retries configured to $config.quarantine.maxRetries")
 	def pg = new PostgresClient()
-	def handler = new KafkaHandler(new Consumer(), new QuarantineProducer(), new DeadLetterProducer())
-	handler.start(List.of(config.topic.name, config.quarantine.name), { ConsumerRecord record -> pg.insertPayment(record.value() as String) })
+	def handler = new KafkaHandler(new Consumer(), new QuarantineProducer(config.quarantine.topicName), new DeadLetterProducer(config.deadletter.topicName))
+	handler.start(List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record -> pg.insertPayment(record.value() as String) })
 }
 
 class Consumer {
@@ -57,10 +64,12 @@ class Consumer {
 
 class DeadLetterProducer {
 	KafkaProducer producer
+	String topic
 	def bootstrapServers = "127.0.0.1:9092"
 	def groupId = "my-fourth-application"
 
-	DeadLetterProducer() {
+	DeadLetterProducer(String topicName) {
+		this.topic = topicName
 		def props = new Properties()
 		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
 		props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
@@ -71,7 +80,8 @@ class DeadLetterProducer {
 	}
 
 	void sendSynchronously(String key, String value, Headers headers) {
-		ProducerRecord quarantineRecord = new ProducerRecord("demo_java_dlq", 0, key, value, headers)
+		// TODO do better with the partition number, the constructor here is annoying
+		ProducerRecord quarantineRecord = new ProducerRecord(topic, 0, key, value, headers)
 		producer.send(quarantineRecord)
 		producer.flush()
 	}
@@ -79,10 +89,12 @@ class DeadLetterProducer {
 
 class QuarantineProducer {
 	KafkaProducer producer
+	String topic
 	def bootstrapServers = "127.0.0.1:9092"
 	def groupId = "my-fourth-application"
 
-	QuarantineProducer() {
+	QuarantineProducer(String topicName) {
+		this.topic = topicName
 		def props = new Properties()
 		props.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
 		props.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.getName())
@@ -93,8 +105,11 @@ class QuarantineProducer {
 	}
 
 	void sendSynchronously(String key, String value, Headers headers) {
+		// "increment" the retry count
 		headers.add("retry-attempt", 0.byteValue())
-		ProducerRecord quarantineRecord = new ProducerRecord("demo_java_quarantine", 0, key, value, headers)
+
+		// TODO do better with the partition number, the constructor here is annoying
+		ProducerRecord quarantineRecord = new ProducerRecord(topic, 0, key, value, headers)
 		producer.send(quarantineRecord)
 		producer.flush()
 	}
@@ -138,6 +153,7 @@ class KafkaHandler {
 
 class Payment {
 	String id
+	@JsonFormat (pattern = "yy-mm-dd HH:mm:ss")
 	Timestamp time
 	float amount
 }
