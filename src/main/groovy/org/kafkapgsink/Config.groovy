@@ -15,10 +15,12 @@ class Config {
 	class Quarantine {
 		String topicName
 		int maxRetries = 3
+		boolean enabled = false
 	}
 
 	class DeadLetter {
 		String topicName
+		boolean enabled = false
 	}
 
 	class Postgres {
