@@ -1,6 +1,5 @@
 package org.example
 
-import com.fasterxml.jackson.annotation.JsonFormat
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.sql.Connection
 import java.sql.DriverManager
@@ -15,6 +14,7 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.header.Headers
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
@@ -31,7 +31,7 @@ static void main(String[] args) {
 
 	def pg = new PostgresClient()
 	def handler = new KafkaHandler(new Consumer(), new QuarantineProducer())
-	handler.start(config.topic.name, { ConsumerRecord record -> pg.insertPayment(record.value() as String) })
+	handler.start(List.of(config.topic.name, config.quarantine.name), { ConsumerRecord record -> pg.insertPayment(record.value() as String) })
 }
 
 class Consumer {
@@ -62,6 +62,7 @@ class QuarantineProducer {
 	KafkaProducer producer
 	def bootstrapServers = "127.0.0.1:9092"
 	def groupId = "my-fourth-application"
+	def logger = LoggerFactory.getLogger(QuarantineProducer)
 
 	QuarantineProducer() {
 		def props = new Properties()
@@ -73,9 +74,10 @@ class QuarantineProducer {
 		producer = new KafkaProducer<>(props)
 	}
 
-	Future<RecordMetadata> send(String key, String value) {
-		ProducerRecord quarantineRecord = new ProducerRecord("demo_java_quarantine", key, value)
-		producer.send(quarantineRecord, )
+	void sendSynchronously(String key, String value, Headers headers) {
+		headers.add("retry-attempt", 0.byteValue())
+		ProducerRecord quarantineRecord = new ProducerRecord("demo_java_quarantine", 0, key, value, headers)
+		producer.send(quarantineRecord)
 		producer.flush()
 	}
 }
@@ -90,8 +92,8 @@ class KafkaHandler {
 		this.quarantineProducer = quarantineProducer
 	}
 
-	void start(String topic, Closure callback) {
-		consumer.subscribe(List.of(topic))
+	void start(List<String> topics, Closure callback) {
+		consumer.subscribe(topics)
 
 		//noinspection GroovyInfiniteLoopStatement
 		while (true) {
@@ -100,7 +102,13 @@ class KafkaHandler {
 				try {
 					callback(it)
 				} catch (Exception e) {
-					quarantineProducer.send(it.key(), it.value())
+					def retryCount = it.headers().count {it.key().equals("retry-attempt")}
+					logger.info("RETRY COUNT: $retryCount")
+					if (retryCount > 3) {
+						logger.error("Dropping message after 3 retries")
+					} else {
+						quarantineProducer.sendSynchronously(it.key(), it.value(), it.headers())
+					}
 				}
 			}
 		}
@@ -131,14 +139,14 @@ class PostgresClient {
 		try {
 			row = objectMapper.readValue(data, Payment)
 		} catch (Exception e) {
-			logger.error("could not deserialize data", e)
+			logger.debug("could not deserialize data", e)
 		}
 
 		logger.debug("$row.amount, $row.time, $row.id")
 		try {
 			connection.createStatement().execute("insert into main_payment(id, amount, time) values ('$row.id', $row.amount, timestamp '$row.time')")
 		} catch (Exception e) {
-			logger.error("couldn't insert row", e)
+			logger.debug("couldn't insert row", e)
 		}
 	}
 }

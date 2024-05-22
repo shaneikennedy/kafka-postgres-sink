@@ -9,6 +9,7 @@ class Config {
 		def props = new Properties()
 		props.load(Main.getClassLoader().getResourceAsStream("config.properties"))
 		topic = new Topic(name: props.getProperty("topicName"))
+		quarantine = new Quarantine(name: props.getProperty("quarantineTopicName"))
 	}
 
 	class Topic {
