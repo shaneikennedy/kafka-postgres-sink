@@ -1,4 +1,4 @@
-package org.example
+package org.kafkapgsink
 
 class Config {
 	Kafka kafka
