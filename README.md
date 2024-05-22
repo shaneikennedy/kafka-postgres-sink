@@ -26,11 +26,13 @@ topic:
 
 # Quarantine strategy
 quarantine:
+  enabled: true
   topicName: demo_java_quarantine
   maxRetries: 3
 
 # Dead letter queuing
 deadletter:
+  enabled: true
   topicName: demo_java_dlq
 
 

@@ -32,10 +32,13 @@ static void main(String[] args) {
 	log.info("max retries configured to $config.quarantine.maxRetries")
 	def pg = new PostgresClient(config.postgres)
 
+	def consumer = new Consumer(config.kafka)
+	def quarantine = config.quarantine.enabled ?  new QuarantineProducer(config.kafka, config.quarantine) : null
+	def dlq = config.deadletter.enabled ? new DeadLetterProducer(config.kafka, config.deadletter) : null
 	def handler = new KafkaHandler(
-			new Consumer(config.kafka),
-			new QuarantineProducer(config.kafka, config.quarantine),
-			new DeadLetterProducer(config.kafka, config.deadletter))
+			consumer,
+			quarantine,
+			dlq)
 	handler.start(
 			List.of(config.topic.name, config.quarantine.topicName), { ConsumerRecord record ->
 				pg.insertRecord(record.value() as String)
@@ -135,12 +138,35 @@ class KafkaHandler {
 					logger.error("Exception: {}", e.toString())
 					def retryCount = it.headers().count {it.key().equals("retry-attempt")}
 					logger.info("RETRY COUNT: $retryCount")
-					if (retryCount > 3) {
-						logger.error("Dropping message after 3 retries")
-						dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
-					} else {
-						logger.info("Sending to quarantine")
-						quarantineProducer.sendSynchronously(it.key(), it.value(), it.headers())
+
+					// if theres a quarantine
+					if (quarantineProducer != null) {
+						if (retryCount <= 3) {
+							logger.info("Sending to quarantine")
+							quarantineProducer.sendSynchronously(it.key(), it.value(), it.headers())
+						}
+					}
+
+					// if theres a dlq
+					if (dlqProducer != null) {
+						if (quarantineProducer == null) {
+							logger.error("Sending to dead letter after 0 retries")
+							dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
+
+						} else if (retryCount > 3) {
+							logger.error("Sending to dead letter after 3 retries")
+							dlqProducer.sendSynchronously(it.key(), it.value(), it.headers())
+						}
+					}
+
+					// if dlq is null and we're over 3 retries, log error message about dropping
+					if (dlqProducer == null && retryCount > 3) {
+						logger.error("Dropping message for key: $it.key after 3 retries")
+
+					}
+
+					if (dlqProducer == null  && quarantineProducer == null) {
+						logger.error("Dropping message for key: $it.key")
 					}
 				}
 			}
