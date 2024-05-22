@@ -1,41 +1,65 @@
 plugins {
-    id 'groovy'
+	id 'groovy'
+}
+plugins {
+	id "com.diffplug.spotless" version "6.25.0"
 }
 
 group = 'org.example'
 version = '1.0-SNAPSHOT'
 
 repositories {
-    mavenCentral()
+	mavenCentral()
 }
 
 dependencies {
-    implementation 'org.apache.groovy:groovy:4.0.14'
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+	implementation 'org.apache.groovy:groovy:4.0.14'
+	testImplementation platform('org.junit:junit-bom:5.10.0')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
 
-    // https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients
-    implementation 'org.apache.kafka:kafka-clients:3.0.0'
+	// https://mvnrepository.com/artifact/org.apache.kafka/kafka-clients
+	implementation 'org.apache.kafka:kafka-clients:3.0.0'
 
-    // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
-    implementation 'org.slf4j:slf4j-api:1.7.32'
+	// https://mvnrepository.com/artifact/org.slf4j/slf4j-api
+	implementation 'org.slf4j:slf4j-api:1.7.32'
 
-    // https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
-    implementation 'org.slf4j:slf4j-simple:1.7.32'
+	// https://mvnrepository.com/artifact/org.slf4j/slf4j-simple
+	implementation 'org.slf4j:slf4j-simple:1.7.32'
 
-    implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
-    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.17.1'
-    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.17.1'
-
+	implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
+	implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.17.1'
+	implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.17.1'
 }
 
 test {
-    useJUnitPlatform()
+	useJUnitPlatform()
 }
 
 tasks.register('run', JavaExec) {
-    main = 'org.example.Main'
-    classpath = sourceSets.main.runtimeClasspath
+	main = 'org.example.Main'
+	classpath = sourceSets.main.runtimeClasspath
 }
 
 run.dependsOn('compileJava')
+
+apply plugin: 'groovy'
+spotless {
+	groovy {
+		// Use the default importOrder configuration
+		importOrder()
+		// removes semicolons at the end of lines
+		removeSemicolons()
+		// the Groovy Eclipse formatter extends the Java Eclipse formatter,
+		// so it formats Java files by default (unless `excludeJava` is used).
+		greclipse() // has its own section below
+
+		//---- Below is for `groovy` only ----
+
+		// excludes all Java sources within the Groovy source dirs from formatting
+		excludeJava()
+	}
+	groovyGradle {
+		target '*.gradle' // default target of groovyGradle
+		greclipse()
+	}
+}
