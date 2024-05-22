@@ -130,6 +130,7 @@ class KafkaHandler {
 			records.each {
 				try {
 					callback(it)
+					logger.info("Successfully wrote to pg for key: $it.key")
 				} catch (Exception e) {
 					logger.error("Exception: {}", e.toString())
 					def retryCount = it.headers().count {it.key().equals("retry-attempt")}
