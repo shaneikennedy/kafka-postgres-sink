@@ -99,3 +99,6 @@ out/
 
 lib/
 gradle/
+
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
